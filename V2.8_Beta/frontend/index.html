@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VulnIQ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="topbar" id="topbar">
+  <div class="scan-beam" aria-hidden="true"></div>
+  <div class="brand">
+    <img src="logo_40.png" class="brand-logo" alt="VulnIQ" width="36" height="36">
+    <div class="brand-text">
+      <span class="brand-name">VulnIQ</span>
+      <span class="brand-powered">Powered by Opus Intelligence</span>
+    </div>
+  </div>
+  <nav class="tabs" role="tablist">
+    <button class="tab active" data-tab="dashboard">Dashboard</button>
+    <button class="tab" data-tab="scans">Scans</button>
+    <button class="tab" data-tab="findings">Findings</button>
+    <button class="tab" data-tab="remediation">Remediation</button>
+    <button class="tab" data-tab="api-security">API Security</button>
+    <button class="tab" data-tab="settings">Settings</button>
+  </nav>
+  <div class="token-meter" id="topbarTokenMeter" title="Opus token usage">
+    <span class="token-meter-label">Tokens</span>
+    <span class="token-meter-value" id="topbarTokenValue">0</span>
+  </div>
+  <div class="status-pill" id="statusPill">idle</div>
+</header>
+
+<main>
+
+<!-- ═══════════ DASHBOARD ═══════════ -->
+<section id="panel-dashboard" class="panel active">
+  <div class="panel-header">
+    <h1>Security intelligence</h1>
+    <div class="panel-actions">
+      <select id="appSelectDashboard" class="select-sm"><option value="">All applications</option></select>
+      <div class="dash-toggle">
+        <button class="dash-toggle-btn active" id="btnTechnical" onclick="setDashView('technical')">Technical</button>
+        <button class="dash-toggle-btn" id="btnExecutive" onclick="setDashView('executive')">Executive</button>
+      </div>
+      <button class="btn-ghost btn-sm" id="btnDashPdf" onclick="window.open(this.dataset.url||'/api/report/html','_blank')">Download PDF</button>
+    </div>
+  </div>
+
+  <div id="dashTechnical">
+    <div class="metric-grid" id="metricGrid"></div>
+    <div class="two-col">
+      <section class="block">
+        <h2>Priority patch <span class="badge-info">highest risk first</span></h2>
+        <div id="priorityPatchList"></div>
+      </section>
+      <section class="block">
+        <h2>Attack chains <span class="badge-count" id="chainCount">0</span></h2>
+        <div id="chainsList"></div>
+      </section>
+    </div>
+    <section class="block">
+      <h2>Historical vulnerability reference</h2>
+      <div id="histVulnTable"></div>
+    </section>
+  </div>
+
+  <div id="dashExecutive" hidden>
+    <div class="exec-summary" id="execSummary"></div>
+    <div class="two-col">
+      <section class="block"><h2>Risk distribution</h2><canvas id="chartSeverity" width="400" height="220"></canvas></section>
+      <section class="block"><h2>Remediation progress</h2><canvas id="chartRemediation" width="400" height="220"></canvas></section>
+    </div>
+    <section class="block"><h2>Security posture</h2><div id="execPosture"></div></section>
+  </div>
+</section>
+
+<!-- ═══════════ SCANS ═══════════ -->
+<section id="panel-scans" class="panel" hidden>
+  <div class="panel-header"><h1>Scans</h1></div>
+
+  <section class="block">
+    <h2>Targets</h2>
+    <p class="hint" style="margin-bottom:12px;">Each target runs as an independent scan. Add multiple targets and scan them simultaneously.</p>
+
+    <div class="field" style="max-width:340px;margin-bottom:14px;">
+      <label for="scanModeSelect">Scan mode</label>
+      <select id="scanModeSelect">
+        <option value="thorough" selected>Thorough — full depth (slower, recommended)</option>
+        <option value="fast">Fast — reduced depth, may miss blind/time-based issues</option>
+      </select>
+      <span class="hint" id="scanModeHint">Tests every parameter at full ZAP/SQLMap strength, including slow blind and time-based checks. Best accuracy.</span>
+    </div>
+
+    <div id="urlRowList"></div>
+    <button class="btn-ghost btn-sm" id="addUrlBtn" onclick="addUrlRow()" style="margin-top:8px;">+ Add target</button>
+
+    <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border-soft);">
+      <h2>Authentication <span class="hint-inline">(optional — enables full authenticated testing)</span></h2>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;max-width:720px;">
+        <div class="field">
+          <label for="credUsername">Username / Email</label>
+          <input type="text" id="credUsername" placeholder="admin" autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="credPassword">Password</label>
+          <input type="password" id="credPassword" placeholder="password">
+        </div>
+        <div class="field">
+          <label for="credLoginUrl">Login URL <span class="hint-inline">(if different from target)</span></label>
+          <input type="text" id="credLoginUrl" placeholder="https://app.com/login" autocomplete="off">
+        </div>
+      </div>
+      <p class="hint" style="margin-top:6px;">Credentials enable browser-based authenticated crawling, finding endpoints that unauthenticated scanners miss entirely. Credentials are used only for this scan and never stored.</p>
+    </div>
+  </section>
+
+  <section class="block">
+    <h2>Active &amp; completed jobs <span class="badge-count" id="jobCount">0</span></h2>
+    <div id="scanControls" style="display:flex;gap:8px;margin-bottom:12px;" hidden>
+      <button class="btn-ghost btn-sm" id="pauseScanBtn" onclick="pauseScan()">Pause</button>
+      <button class="btn-ghost btn-sm" id="resumeScanBtn" onclick="resumeScan()" hidden>Resume</button>
+      <button class="btn-ghost btn-sm" id="stopScanBtn" style="color:var(--critical);" onclick="stopScan()">Stop</button>
+    </div>
+    <div id="activeJobsList"><p class="hint">No scan jobs yet.</p></div>
+  </section>
+
+  <section class="block">
+    <h2>Scheduled assessments</h2>
+    <div id="schedulesList"></div>
+    <form class="scan-form" id="scheduleForm" style="margin-top:12px;">
+      <input type="text" id="scheduleUrl" placeholder="https://your-app.com">
+      <input type="text" id="scheduleAppName" placeholder="App name">
+      <input type="text" id="scheduleCron" value="0 2 * * *" style="max-width:180px;">
+      <button type="submit" class="btn-ghost">Add schedule</button>
+    </form>
+  </section>
+</section>
+
+<!-- ═══════════ FINDINGS ═══════════ -->
+<section id="panel-findings" class="panel" hidden>
+  <div class="panel-header">
+    <h1>Findings</h1>
+    <div class="panel-actions">
+      <div class="findings-subtabs">
+        <button class="findings-subtab active" data-sub="enumerated">
+          Enumerated <span class="badge-count" id="enumCount">0</span>
+        </button>
+        <button class="findings-subtab" data-sub="evaluated">
+          Evaluated <span class="badge-count" id="evalCount">0</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Enumerated pane -->
+  <div id="enumerated-pane">
+    <div class="findings-filters">
+      <select id="appFilterEnum" class="select-sm"><option value="">All apps</option></select>
+      <button class="btn-ghost btn-sm" id="dlEnumCsv" onclick="downloadEnumerated('csv')">Download CSV</button>
+      <button class="btn-ghost btn-sm" id="dlEnumJson" onclick="downloadEnumerated('json')">Download JSON</button>
+    </div>
+    <div id="triageProgressArea"></div>
+    <div id="enumeratedList"></div>
+  </div>
+
+  <!-- Evaluated pane -->
+  <div id="evaluated-pane" hidden>
+    <div class="findings-filters">
+      <select id="appFilterEval" class="select-sm"><option value="">All apps</option></select>
+      <select id="severityFilterEval" class="select-sm">
+        <option value="">All severities</option>
+        <option value="critical">Critical</option>
+        <option value="high">High</option>
+        <option value="medium">Medium</option>
+        <option value="low">Low</option>
+      </select>
+      <select id="validationFilterEval" class="select-sm">
+        <option value="">All confidence</option>
+        <option value="confirmed">Confirmed</option>
+        <option value="likely">Likely</option>
+        <option value="potential">Potential</option>
+      </select>
+      <button class="btn-ghost btn-sm" id="dlEvalCsv" onclick="downloadEvaluated('csv')">Download CSV</button>
+      <button class="btn-ghost btn-sm" id="dlEvalCsvReport" onclick="downloadEvaluated('csv-pentest')" title="Affected URL, Vulnerable Parameter, Analysis, Description, Impact, Remediation Steps, Evidence">Download Pentest CSV</button>
+      <button class="btn-ghost btn-sm" id="dlEvalJson" onclick="downloadEvaluated('json')">Download JSON</button>
+    </div>
+    <div id="evaluatedList"></div>
+  </div>
+</section>
+
+<!-- ═══════════ REMEDIATION ═══════════ -->
+<section id="panel-remediation" class="panel" hidden>
+  <div class="panel-header">
+    <h1>Remediation</h1>
+    <div class="panel-actions">
+      <select id="appFilterRemediation" class="select-sm"><option value="">All apps</option></select>
+    </div>
+  </div>
+  <div class="metric-grid" id="remMetricGrid"></div>
+  <div class="rem-columns" id="remColumns"></div>
+</section>
+
+<!-- ═══════════ SETTINGS ═══════════ -->
+<!-- ═══════════ API SECURITY ═══════════ -->
+<section id="panel-api-security" class="panel" hidden>
+  <div class="panel-header">
+    <h1>API Security</h1>
+    <p class="hint" style="margin:0;">OWASP API Top 10 testing — paste curls, upload a spec, or discover by domain</p>
+  </div>
+
+  <!-- Input section -->
+  <section class="block">
+    <h2>API input</h2>
+    <div class="api-mode-tabs">
+      <button class="api-mode-btn active" data-mode="curl" onclick="setApiMode('curl')">Paste curls</button>
+      <button class="api-mode-btn" data-mode="file" onclick="setApiMode('file')">Upload file</button>
+      <button class="api-mode-btn" data-mode="domain" onclick="setApiMode('domain')">Discover by domain</button>
+    </div>
+
+    <!-- Curl input -->
+    <div id="apiModeCurl">
+      <p class="hint" style="margin-bottom:8px;">Paste one or more curl commands. Auth headers, request bodies, and path parameters are extracted automatically.</p>
+      <textarea id="curlInput" rows="8" placeholder="curl -X GET https://api.example.com/v1/users/123 \&#10;  -H 'Authorization: Bearer eyJ...' \&#10;  -H 'Content-Type: application/json'&#10;&#10;curl -X POST https://api.example.com/v1/orders \&#10;  -H 'Authorization: Bearer eyJ...' \&#10;  -d '{&quot;userId&quot;: 1, &quot;amount&quot;: 99.99}'"></textarea>
+    </div>
+
+    <!-- File upload input -->
+    <div id="apiModeFile" hidden>
+      <p class="hint" style="margin-bottom:8px;">Upload a Swagger/OpenAPI spec (.json, .yaml) or a Postman collection (.json).</p>
+      <input type="file" id="apiFileInput" accept=".json,.yaml,.yml" style="margin-bottom:8px;">
+      <div id="apiFilePreview" class="hint"></div>
+    </div>
+
+    <!-- Domain discovery input -->
+    <div id="apiModeDomain" hidden>
+      <p class="hint" style="margin-bottom:8px;">Enter a domain or base URL. VulnIQ will discover API endpoints by crawling, probing common paths, checking for exposed specs, and querying the Wayback Machine.</p>
+      <input type="text" id="apiDomainInput" placeholder="https://api.example.com or example.com" style="max-width:480px;">
+    </div>
+
+    <div style="margin-top:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <button class="btn-primary" id="startApiScanBtn" onclick="startApiScan()">Start API security scan</button>
+      <button class="btn-ghost" onclick="clearApiFindings()">Clear findings</button>
+    </div>
+    <p class="inline-error" id="apiScanError" hidden></p>
+  </section>
+
+  <!-- Progress -->
+  <section class="block" id="apiProgressBlock" hidden>
+    <h2>Scan progress</h2>
+    <div class="progress-wrap"><div class="progress-bar" id="apiProgressBar" style="width:0%"></div></div>
+    <p class="progress-label" id="apiProgressLabel">0% — Starting...</p>
+    <div id="apiDiscoveryLog" style="margin-top:8px;"></div>
+  </section>
+
+  <!-- Findings sub-tabs -->
+  <div class="panel-header" style="margin-top:4px;">
+    <div class="findings-subtabs">
+      <button class="findings-subtab active" data-sub="api-enum" onclick="setApiSubTab('api-enum')">
+        Enumerated <span class="badge-count" id="apiEnumCount">0</span>
+      </button>
+      <button class="findings-subtab" data-sub="api-eval" onclick="setApiSubTab('api-eval')">
+        Evaluated <span class="badge-count" id="apiEvalCount">0</span>
+      </button>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn-ghost btn-sm" onclick="exportApiCsv()">Download Pentest CSV</button>
+    </div>
+  </div>
+
+  <!-- Enumerated pane -->
+  <div id="api-enum-pane">
+    <div id="apiApprovalArea"></div>
+    <div id="apiEnumList"></div>
+  </div>
+
+  <!-- Evaluated pane -->
+  <div id="api-eval-pane" hidden>
+    <div id="apiEvalList"></div>
+  </div>
+</section>
+
+<section id="panel-settings" class="panel" hidden>
+  <div class="panel-header"><h1>Settings</h1></div>
+
+  <section class="block">
+    <h2>Configuration status</h2>
+    <div class="config-checklist" id="configChecklist"></div>
+  </section>
+
+  <div class="settings-layout">
+    <section class="block">
+      <h2>AI intelligence engine</h2>
+      <form class="settings-form" id="settingsForm">
+        <div class="field">
+          <label class="toggle-label">
+            <input type="checkbox" id="aiEnabledToggle">
+            <span>Enable Opus AI analysis</span>
+          </label>
+          <span class="hint">Off by default. Enables CVSS scoring, CWE mapping, root cause analysis, attack chains.</span>
+        </div>
+        <div class="field">
+          <label for="providerSelect">AI provider</label>
+          <select id="providerSelect">
+            <option value="anthropic">Anthropic API (direct)</option>
+            <option value="azure_foundry">Azure AI Foundry</option>
+          </select>
+        </div>
+        <div class="field" id="anthropicKeyField">
+          <label for="apiKeyInput">Anthropic API key</label>
+          <input type="password" id="apiKeyInput" placeholder="sk-ant-...">
+          <span class="key-status" id="apiKeyStatus"></span>
+        </div>
+        <div class="field" id="azureEndpointField" hidden>
+          <label for="azureEndpointInput">Azure Foundry endpoint</label>
+          <input type="text" id="azureEndpointInput" placeholder="https://<resource>.services.ai.azure.com/anthropic">
+        </div>
+        <div class="field" id="azureKeyField" hidden>
+          <label for="azureKeyInput">Azure Foundry API key</label>
+          <input type="password" id="azureKeyInput" placeholder="leave blank to keep current">
+          <span class="key-status" id="azureKeyStatus"></span>
+        </div>
+        <div class="field">
+          <label for="modelInput">Model / deployment name</label>
+          <input type="text" id="modelInput" placeholder="claude-opus-4-6">
+        </div>
+        <button type="submit" class="btn-primary">Save AI settings</button>
+      </form>
+
+      <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border-soft);">
+        <p style="font-size:13px;font-weight:500;margin:0 0 6px;">Connection checkpoint</p>
+        <p class="hint" style="margin-bottom:10px;">Makes one real, minimal Opus call with your saved settings — confirms your key, endpoint, and model are actually working before you approve a real triage.</p>
+        <button type="button" class="btn-ghost" id="testConnectionButton">Test Opus connection</button>
+        <div id="connectionTestResult" style="margin-top:10px;"></div>
+      </div>
+    </section>
+
+    <section class="block">
+      <h2>Scanner &amp; integration settings</h2>
+      <form class="settings-form" id="scannerSettingsForm">
+        <div class="field">
+          <label for="zapUrlInput">ZAP API URL</label>
+          <input type="text" id="zapUrlInput" placeholder="http://localhost:8090">
+        </div>
+        <div class="field">
+          <label for="zapKeyInput">ZAP API key</label>
+          <input type="password" id="zapKeyInput" placeholder="leave blank to keep current">
+          <span class="key-status" id="zapKeyStatus"></span>
+        </div>
+        <div class="field">
+          <label for="nvdKeyInput">NVD API key <span class="hint-inline">(free — 10× faster CVE scanning)</span></label>
+          <input type="password" id="nvdKeyInput" placeholder="leave blank to keep current">
+          <span class="key-status" id="nvdKeyStatus"></span>
+        </div>
+        <div class="field">
+          <label for="slackInput">Slack webhook (optional)</label>
+          <input type="password" id="slackInput" placeholder="leave blank to keep current">
+          <span class="key-status" id="slackStatus"></span>
+        </div>
+        <div class="field">
+          <label class="toggle-label">
+            <input type="checkbox" id="skipInfoToggle">
+            <span>Skip informational findings before AI triage</span>
+          </label>
+        </div>
+        <button type="submit" class="btn-primary">Save scanner settings</button>
+      </form>
+
+      <div style="margin-top:24px;">
+        <h2>Token governance</h2>
+        <div class="field" style="max-width:220px;">
+          <label for="tokenLimitInput">Token limit (0 = unlimited)</label>
+          <input type="text" id="tokenLimitInput" placeholder="0" inputmode="numeric">
+        </div>
+        <button type="button" class="btn-primary" style="margin-top:8px;" id="saveTokenLimitButton">Save limit</button>
+        <div class="metric-grid" style="margin-top:16px;max-width:440px;" id="tokenMetricGrid"></div>
+        <button type="button" class="btn-ghost" id="resetTokensButton" style="margin-top:10px;">Reset usage counter</button>
+      </div>
+      <div style="margin-top:24px;">
+        <h2>Agent learning pipeline</h2>
+        <p class="hint" style="margin-bottom:10px;">Pulls current attacker techniques from PayloadsAllTheThings and refreshes EOL/CVE context fed into every triage agent's reasoning. This does not retrain Opus — it keeps the agent's prompt context current between scans.</p>
+        <div id="learningStatus" class="hint" style="margin-bottom:10px;">Not yet run.</div>
+        <button type="button" class="btn-primary" id="refreshLearningButton">Refresh learning data now</button>
+      </div>
+    </section>
+  </div>
+</section>
+
+</main>
+<div class="toast" id="toast"></div>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

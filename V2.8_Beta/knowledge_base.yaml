@@ -1,0 +1,60 @@
+# Fill this in with details about your own application.
+# - app_context is shared across every agent.
+# - each category section only feeds that category's agent.
+# Leave any field empty/[] if you don't have it yet.
+
+app_context:
+  tech_stack: ""           # e.g. "Python/FastAPI backend, React frontend, Postgres, AWS"
+  auth_flow: ""            # e.g. "JWT bearer tokens, 15 min expiry, refresh via /auth/refresh"
+  sensitive_endpoints: []  # e.g. ["/api/orders/*", "/api/admin/*", "/api/payments/*"]
+
+categories:
+  "A01:broken_access_control":
+    business_rules: []
+    known_false_positives: []
+    past_examples: []
+
+  "A02:security_misconfiguration":
+    business_rules: []
+    known_false_positives: []
+    past_examples: []
+
+  "A03:software_supply_chain_failures":
+    business_rules: []
+    known_false_positives: []
+    past_examples: []
+
+  "A04:cryptographic_failures":
+    business_rules: []
+    known_false_positives: []
+    past_examples: []
+
+  "A05:injection":
+    business_rules: []
+    known_false_positives: []
+    past_examples: []
+
+  "A06:insecure_design":
+    business_rules: []
+    known_false_positives: []
+    past_examples: []
+
+  "A07:authentication_failures":
+    business_rules: []
+    known_false_positives: []
+    past_examples: []
+
+  "A08:software_data_integrity_failures":
+    business_rules: []
+    known_false_positives: []
+    past_examples: []
+
+  "A09:logging_alerting_failures":
+    business_rules: []
+    known_false_positives: []
+    past_examples: []
+
+  "A10:mishandling_exceptional_conditions":
+    business_rules: []
+    known_false_positives: []
+    past_examples: []
